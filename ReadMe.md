@@ -1,128 +1,207 @@
-Custom 10-bit ISA Processor 🚀
-A fully functional single-cycle processor implementing a custom MIPS and RISC-V inspired 10-bit Instruction Set Architecture, built in Verilog HDL, simulated and synthesized with Xilinx Vivado, and deployed on the Nexys A7 FPGA.
-> Developed as part of coursework at **COMSATS University Islamabad – Wah Campus**, mentored by **Sir Ali Roman**.
----
-📚 Project Overview
-This project constructs a simple yet complete single-cycle processor that executes R-Type, I-Type, and J-Type instructions. It emphasizes clarity, modularity, and practical demonstration of computer architecture principles — from instruction fetch all the way through writeback.
-Feature	Details
-Word Size	10-bit
-Instruction Width	10-bit
-Instruction Types	R-Type, I-Type, J-Type
-FPGA Board	Nexys A7 (Artix-7 XC7A100TCSG324-1)
-Development Tools	Verilog HDL, Xilinx Vivado
-Simulation	Vivado Simulator
----
-🏗 Architecture
-The processor follows a classical single-cycle datapath design. Every instruction completes in exactly one clock cycle — control signals are combinationally derived from the opcode, and data flows through the datapath in a single pass.
+# Custom 10-bit ISA Processor
+
+**A custom-designed processor built entirely from scratch in Verilog HDL and deployed on a real FPGA board.**
+
+This project implements a complete, working CPU with its own custom Instruction Set Architecture (ISA). Every component — the arithmetic unit, memory system, control logic, and program counter — was designed, coded, simulated, and synthesized from the ground up. The processor was successfully deployed and tested on a Nexys A7 FPGA development board.
+
+Developed at **COMSATS University Islamabad, Wah Campus** under the mentorship of **Sir Ali Roman**.
+
+**What is an ISA?** An Instruction Set Architecture is the contract between software and hardware — it defines what instructions a processor understands. Most engineers use existing ISAs such as ARM or x86. This project defines and implements an entirely new one.
+
+**What is an FPGA?** A Field-Programmable Gate Array is a chip whose internal hardware connections can be configured by the engineer after manufacturing. It is used to prototype and verify real digital hardware designs before committing to silicon fabrication.
+
+## Project Specifications
+
+| Property | Value |
+|---|---|
+| Data Width | 10 bits |
+| Instruction Width | 10 bits |
+| Instruction Types | R-Type (register), I-Type (immediate), J-Type (jump) |
+| Number of Registers | 8 general-purpose registers |
+| Instruction Memory | 64 locations (10-bit ROM) |
+| Data Memory | 256 locations (10-bit RAM) |
+| Execution Model | Single-cycle (one instruction completes per clock cycle) |
+| Hardware Description Language | Verilog HDL |
+| Synthesis and Simulation Tool | Xilinx Vivado |
+| Target FPGA Board | Nexys A7 — Artix-7 XC7A100TCSG324-1 |
+
+## Processor Architecture
+
+The processor uses a **single-cycle datapath** design. Every instruction — whether arithmetic, memory access, or branch — completes in exactly one clock cycle. Control signals are generated combinationally from the instruction opcode, and data flows through the processor in a single forward pass from instruction fetch to result writeback.
+
+The diagram below shows how data and control signals move through the processor:
+
 ```
-Instruction Memory → Instruction Decoder → Control Unit
-                                        ↓
-                          Register File → ALU → Data Memory → Writeback
-                                        ↑
-                                  Program Counter
+  +---------------------------+
+  |    Instruction Memory     |
+  |    (64 x 10-bit ROM)      |
+  |  Holds the program code   |
+  +------------+--------------+
+               |
+               |  10-bit instruction word
+               v
+  +------------+--------------+
+  |    Instruction Decoder    |  Splits instruction into opcode,
+  |                           |  SRC1, SRC2, DST, and Immediate
+  +------+--------------------+
+         |
+         +-------------------------------+
+         |                               |
+         v                               v
+  +------+----------+        +-----------+----------+
+  |   Control Unit  |        |     Register File     |
+  |                 |        |   8 registers x 10b   |
+  | Reads opcode,   |        |   2 read ports        |
+  | generates all   |        |   1 write port        |
+  | control signals |        +-----+-----------+-----+
+  +------+----------+              |           |
+         |                      SRC1         SRC2
+         |  Control signals       |           |
+         |                        v           v
+         |               +--------+-----------+--------+
+         +-------------->|           ALU (10-bit)      |
+                         |  ADD  SUB  MUL  XOR         |
+                         |  SPLIT  MOD2  PASS  INCR    |
+                         +--------+--------------------+
+                                  |
+                                  |  ALU Result
+                     +------------+---------------+
+                     |                            |
+                     v                            v
+        +------------+----------+    +------------+----------+
+        |      Data Memory      |    |   Register Writeback  |
+        |  (256 x 10-bit RAM)   |    |  Result written into  |
+        |  LOAD and STORE ops   |    |  destination register |
+        +-----------------------+    +-----------------------+
+
+  +---------------------------+
+  |      Program Counter      |
+  |  Tracks current address   |
+  |  Supports: sequential     |
+  |  increment, BEQ, BNE,     |
+  |  and unconditional JUMP   |
+  +---------------------------+
 ```
----
-🛠 Core Components
-ALU (Arithmetic Logic Unit)
-Supports 8 operations: `ADD`, `SUB`, `MUL`, `XOR`, `SPLIT`, `MOD2`, `PASS`, and `INCR`.
-Register File
-8 registers, each 10 bits wide. Supports dual-read, single-write in a single cycle.
-Program Counter (PC)
-Handles sequential execution, unconditional jumps, and conditional branches (BEQ, BNE).
-Instruction Decoder
-Splits the 10-bit instruction word into opcode, source registers, destination register, and immediate fields.
-Control Unit
-Generates all control signals (ALUSrc, MemWrite, RegWrite, Branch, Jump, etc.) combinationally from the opcode.
-Instruction Memory
-64 × 10-bit ROM — holds the program to execute.
-Data Memory
-256 × 10-bit RAM — used for LOAD and STORE operations.
----
-📜 Instruction Set Reference
-Opcode	Mnemonic	Type	Operation
-`0000`	HALT	—	Stop execution
-`0001`	ADD	R	SRC1 + SRC2 → DST
-`0010`	MUL	R	SRC1 × SRC2 → DST
-`0011`	SUB	R	SRC1 − SRC2 → DST
-`0100`	SET	I	Load immediate into DST
-`0101`	SPLIT	R	Extract upper/lower 5 bits
-`0110`	LOAD	I	Data Memory[addr] → DST
-`0111`	STORE	I	SRC → Data Memory[addr]
-`1000`	BEQ	I	Branch if DST == 0
-`1001`	JUMP	J	Unconditional jump
-`1010`	MOD2	R	Check if even (LSB test)
-`1011`	INCR	R	DST = DST + 1
-`1100`	BNE	I	Branch if DST ≠ 0
-Full encoding details are in `docs/instruction_set_manual.md`.
----
-🧩 Repository Structure
+
+## Core Components
+
+| Component | Role |
+|---|---|
+| **ALU** | Executes all arithmetic and logic operations. Supports ADD, SUB, MUL, XOR, SPLIT, MOD2, PASS, and INCR |
+| **Register File** | Stores eight 10-bit general-purpose values. Provides two simultaneous read ports and one write port, all in one cycle |
+| **Program Counter** | Tracks the address of the current instruction. Updated each cycle to either the next address, a branch target, or a jump destination |
+| **Instruction Decoder** | Takes the raw 10-bit instruction word and extracts each field: opcode, two source register indices, destination register index, and immediate value |
+| **Control Unit** | A purely combinational block that reads the opcode and generates every control signal the datapath needs — RegWrite, ALUSrc, MemWrite, MemRead, Branch, Jump |
+| **Instruction Memory** | A 64-location, 10-bit wide ROM that holds the program being executed |
+| **Data Memory** | A 256-location, 10-bit wide RAM used by LOAD and STORE instructions at runtime |
+
+## Instruction Set
+
+The ISA supports 13 instructions across three encoding formats. R-Type instructions operate on two register operands. I-Type instructions combine a register with a constant encoded directly in the instruction. J-Type instructions encode a target address for unconditional jumps.
+
+| Opcode | Mnemonic | Format | Operation |
+|--------|----------|--------|-----------|
+| 0000 | HALT | — | Stops processor execution |
+| 0001 | ADD | R-Type | DST = SRC1 + SRC2 |
+| 0010 | MUL | R-Type | DST = SRC1 x SRC2 |
+| 0011 | SUB | R-Type | DST = SRC1 - SRC2 |
+| 0100 | SET | I-Type | DST = Immediate value (loads a constant into a register) |
+| 0101 | SPLIT | R-Type | Extracts the upper or lower 5 bits from a register |
+| 0110 | LOAD | I-Type | DST = DataMemory[address] |
+| 0111 | STORE | I-Type | DataMemory[address] = SRC |
+| 1000 | BEQ | I-Type | Branch to offset address if DST equals zero |
+| 1001 | JUMP | J-Type | Unconditional jump to target address |
+| 1010 | MOD2 | R-Type | DST = 1 if SRC is even, 0 if odd (checks least-significant bit) |
+| 1011 | INCR | R-Type | DST = DST + 1 |
+| 1100 | BNE | I-Type | Branch to offset address if DST is not zero |
+
+Complete instruction encoding, field-level bit layouts, and worked examples are in [docs/instruction_set_manual.md](docs/instruction_set_manual.md).
+
+## Repository Structure
+
 ```
 custom-10bit-isa-fpga/
-├── docs/
-│   ├── architecture_overview.md       # Full datapath and control description
-│   ├── instruction_set_manual.md      # Instruction encoding and field layout
-│   └── design_flow.md                 # Simulation results and design decisions
-├── src/
-│   ├── alu.v                          # Arithmetic Logic Unit
-│   ├── control.v                      # Control Unit (combinational)
-│   ├── data_memory.v                  # 256×10-bit RAM
-│   ├── instruction_decoder.v          # Instruction field splitter
-│   ├── instruction_memory.v           # 64×10-bit ROM
-│   ├── mux8x1.v                       # 8-to-1 multiplexer
-│   ├── dff_10bit.v                    # D flip-flop (10-bit)
-│   ├── program_counter.v              # PC with branch/jump logic
-│   ├── reg_file.v                     # 8-register file
-│   └── processor.v                    # Top-level integration
-├── constraints/
-│   └── Processor.xdc                  # Nexys A7 pin constraints
-├── simulation and Other/              # Simulation waveforms and outputs
-├── .gitignore
-├── LICENSE
-└── ReadMe.md
+|
++-- src/
+|   +-- processor.v              Top-level module — connects all components
+|   +-- alu.v                    Arithmetic Logic Unit
+|   +-- control.v                Control Unit (purely combinational)
+|   +-- reg_file.v               8-register file with dual read port
+|   +-- instruction_decoder.v    Splits 10-bit instruction into fields
+|   +-- instruction_memory.v     64 x 10-bit program ROM
+|   +-- data_memory.v            256 x 10-bit data RAM
+|   +-- program_counter.v        PC with sequential, branch, and jump logic
+|   +-- mux8x1.v                 8-to-1 multiplexer
+|   +-- dff_10bit.v              10-bit D flip-flop
+|
++-- docs/
+|   +-- architecture_overview.md   Full datapath and control unit description
+|   +-- instruction_set_manual.md  Complete ISA encoding reference
+|   +-- design_flow.md             Simulation methodology and verified results
+|
++-- constraints/
+|   +-- Processor.xdc              Nexys A7 FPGA pin assignment file
+|
++-- simulation and Other/          Waveform captures and simulation outputs
 ```
----
-🛠 How to Build and Run
-1. Clone this Repository
+
+## Simulation and Verification
+
+The processor was verified against three test programs before deploying to hardware. Each program tests a different combination of instructions and control flow paths.
+
+| Test Program | Instructions Exercised | Result |
+|---|---|---|
+| Factorial of 5 (expected: 120) | SET, MUL, DECR, BNE, JUMP, STORE | Pass |
+| Square of 5 (expected: 25) | SET, MUL, STORE | Pass |
+| HALT instruction | HALT — PC must stop advancing | Pass |
+
+Full waveform captures and per-instruction trace analysis are in [docs/design_flow.md](docs/design_flow.md).
+
+## FPGA Resource Utilization
+
+The design was synthesized and implemented on the Nexys A7 (Artix-7 XC7A100TCSG324-1). Resource consumption is low because this is an educational-scale processor — the focus is correctness and clarity of design, not performance optimization.
+
+| FPGA Resource | Utilization |
+|---|---|
+| Look-Up Tables (LUTs) | ~1% |
+| Flip-Flops (FFs) | ~1% |
+| DSP Blocks | ~1% |
+| IO Pins | ~6% |
+
+## How to Build and Run
+
+**Requirements:** Xilinx Vivado (any version supporting Artix-7), Nexys A7 FPGA board for hardware deployment.
+
+**Step 1 — Clone the repository**
+
 ```bash
 git clone https://github.com/Engrr2025/custom-10bit-isa-fpga.git
 cd custom-10bit-isa-fpga
 ```
-2. Open in Vivado
-Launch Xilinx Vivado and create a new project.
-Add all `.v` files from the `src/` directory as design sources.
-Apply the `constraints/Processor.xdc` constraints file.
-Set `processor.v` as the top module.
-3. Simulate (Optional but Recommended)
-Create a testbench or use the provided simulation files.
-Run Behavioral Simulation in Vivado to verify instruction execution.
-Check waveforms for PC progression, register writes, and memory accesses.
-4. Synthesize and Implement
-Run Synthesis → Implementation → Generate Bitstream in sequence.
-5. Program the FPGA
-Connect the Nexys A7 via USB.
-Open Vivado Hardware Manager and program the device with the generated `.bit` file.
----
-📈 Simulation Results
-Test Case	Expected Behaviour	Result
-Factorial of 5 (5!)	Loop executes correctly, result stored in memory	✅ Pass
-Square of 5 (5²)	MUL instruction validates correctly	✅ Pass
-HALT execution	Processor stops cleanly at HALT opcode	✅ Pass
-> Full waveform captures and analysis available in [`docs/design_flow.md`](docs/design_flow.md).
----
-⚙️ FPGA Resource Utilization (Nexys A7)
-Resource	Utilization
-LUTs	~1%
-Flip-Flops	~1%
-DSP Blocks	~1%
-IO Pins	~6%
-The design is intentionally minimal — this is a learning-oriented processor, not a performance-optimized one.
----
-👥 Contributors
-Junaid Khalid — GitHub · LinkedIn
-Abdul Rahman — GitHub
-Mentored by Sir Ali Roman, COMSATS University Islamabad – Wah Campus.
----
-📋 License
-This project is licensed under the MIT License.
----
-> Built for learning, hardware exploration, and FPGA fun. ❤️
+
+**Step 2 — Create a Vivado project**
+
+Launch Vivado and create a new RTL project. Add all `.v` files from the `src/` directory as Verilog design sources. Apply the `constraints/Processor.xdc` constraints file. Set `processor.v` as the top-level module.
+
+**Step 3 — Simulate**
+
+Run Behavioral Simulation in Vivado. Inspect waveforms for program counter progression, register write values, ALU outputs, and memory read/write operations. Compare against the expected outputs documented in the `docs/` folder.
+
+**Step 4 — Synthesize and Implement**
+
+From the Vivado Flow Navigator, run Synthesis, then Implementation, then Generate Bitstream in sequence.
+
+**Step 5 — Program the FPGA**
+
+Connect the Nexys A7 board via USB. Open Vivado Hardware Manager, detect the board, and program it with the generated `.bit` bitstream file.
+
+## Contributors
+
+- **Junaid Khalid** — [GitHub](https://github.com/Engrr2025) | [LinkedIn](https://www.linkedin.com/in/junaid-khalid23/)
+- **Abdul Rahman** — [GitHub](https://github.com/arkhawja)
+
+Mentored by **Sir Ali Roman**, COMSATS University Islamabad, Wah Campus.
+
+## License
+
+This project is licensed under the MIT License. See [LICENSE](LICENSE) for full terms.
