@@ -1,22 +1,22 @@
 `timescale 1ns / 1ps
 //////////////////////////////////////////////////////////////////////////////////
-// Company:
-// Engineer:
-//
+// Company: 
+// Engineer: 
+// 
 // Create Date: 12/15/2024 05:50:55 PM
-// Design Name:
+// Design Name: 
 // Module Name: Processor
-// Project Name:
-// Target Devices:
-// Tool Versions:
-// Description:
-//
-// Dependencies:
-//
+// Project Name: 
+// Target Devices: 
+// Tool Versions: 
+// Description: 
+// 
+// Dependencies: 
+// 
 // Revision:
 // Revision 0.01 - File Created
 // Additional Comments:
-//
+// 
 //////////////////////////////////////////////////////////////////////////////////
 
 module Processor #(
@@ -42,16 +42,14 @@ module Processor #(
     localparam OP_LOAD_IMM = 4'b0100;
     localparam OP_LW       = 4'b0110;
     localparam OP_SW       = 4'b0111;
-    localparam OP_MOV      = 4'b1110;
-    localparam REG_ONE     = 3'b001; // r1 - default accumulator
-    localparam REG_SIX     = 3'b110; // r6 - SW's fixed source
+    localparam REG_ONE     = 3'b001; // r1 - shared LOAD_IMM/LW/SW gateway register
 
     // LOAD_IMM/LW/SW spend their whole 6-bit tail on an immediate or
     // address, so they can't also encode a register field - LOAD_IMM/LW
-    // always target r1, and SW always reads r6. MOV always reads r1
-    // (its own bits[5:3] is the destination instead).
-    wire [2:0] srcA_sel      = (OPCODE == OP_SW)  ? REG_SIX : SRC1;
-    wire [2:0] srcB_sel      = (OPCODE == OP_MOV) ? REG_ONE : SRC2;
+    // always target r1, and SW always reads r1. MOV is a plain R-Type
+    // instruction (DEST = SRC2) and needs no override: DEST already
+    // resolves to bits[5:3] and SRC2 to bits[2:0] like every other R-Type op.
+    wire [2:0] srcA_sel      = (OPCODE == OP_SW) ? REG_ONE : SRC1;
     wire [2:0] writeReg_sel  = (OPCODE == OP_LOAD_IMM || OPCODE == OP_LW) ? REG_ONE : DEST;
     wire IMM_OP = (OPCODE == OP_LOAD_IMM) || (OPCODE == OP_LW) || (OPCODE == OP_SW);
 
@@ -123,7 +121,7 @@ module Processor #(
         .RegWrite1(REG_WRITE),
         .RegWrite2(1'b0),
         .srcA(srcA_sel),
-        .srcB(srcB_sel),
+        .srcB(SRC2),
         .writeReg1(writeReg_sel),  // Write back to DEST, or r1 for LOAD_IMM/LW
         .writeValue1(WB_DATA),
         .ReadA(ReadA),
@@ -147,7 +145,7 @@ module Processor #(
         .RESET(RESET),
         .MEM_WRITE(MEM_WRITE),
         .ADDRESS(ALU_OUT_LO),
-        .WRITE_DATA(ReadA),        // r6 for SW, via srcA_sel
+        .WRITE_DATA(ReadA),        // r1 for SW, via srcA_sel
         .READ_DATA(MemData)
     );
 
@@ -155,3 +153,4 @@ module Processor #(
     assign WB_DATA = MEM_OR_ALU ? MemData : ALU_OUT_LO; // Data from Memory or ALU Result
 
 endmodule
+

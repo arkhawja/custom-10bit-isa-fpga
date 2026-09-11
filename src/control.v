@@ -1,22 +1,22 @@
 `timescale 1ns / 1ps
 //////////////////////////////////////////////////////////////////////////////////
-// Company:
-// Engineer:
-//
+// Company: 
+// Engineer: 
+// 
 // Create Date: 12/13/2024 05:16:12 PM
-// Design Name:
+// Design Name: 
 // Module Name: control
-// Project Name:
-// Target Devices:
-// Tool Versions:
-// Description:
-//
-// Dependencies:
-//
+// Project Name: 
+// Target Devices: 
+// Tool Versions: 
+// Description: 
+// 
+// Dependencies: 
+// 
 // Revision:
 // Revision 0.01 - File Created
 // Additional Comments:
-//
+// 
 //////////////////////////////////////////////////////////////////////////////////
 
 module Control(
@@ -74,7 +74,7 @@ module Control(
                 MEM_OR_ALU = 1;
                 ALU_OP = 3'b110; // PASS: forward immediate address to DataMemory
             end
-            4'b0111: begin // SW: DataMemory[6-bit address] = r6
+            4'b0111: begin // SW: DataMemory[6-bit address] = r1
                 MEM_WRITE = 1;
                 ALU_OP = 3'b110; // PASS: forward immediate address to DataMemory
             end
@@ -100,9 +100,9 @@ module Control(
             4'b1101: begin // JUMP_UNEQUAL: PC = address if ~EQ_FLAG
                 JNE = 1;
             end
-            4'b1110: begin // MOV: DEST = r1
+            4'b1110: begin // MOV: DEST = SRC2 (general register-to-register copy)
                 REG_WRITE = 1;
-                ALU_OP = 3'b110; // PASS: forward r1's value to OUT_LO
+                ALU_OP = 3'b110; // PASS: forward SRC2's value to OUT_LO
             end
             default: begin
                 // Reserved / unsupported opcode: no side effects
@@ -114,3 +114,5 @@ module Control(
     assign HALT = (OPCODE == 4'b0000) ? 1 : 0;
 
 endmodule
+
+
