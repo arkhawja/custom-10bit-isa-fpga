@@ -19,7 +19,9 @@
 // 
 //////////////////////////////////////////////////////////////////////////////////
 
-module Processor(
+module Processor #(
+    parameter integer PROGRAM = 0   // 0 = Factorial(5), 1 = Square(5) - see InstructionMemory.v
+)(
     input CLK,
     input RESET,               // Reset signal
     output [9:0] PC_OUT,       // Program Counter output
@@ -30,25 +32,50 @@ module Processor(
     wire [9:0] INSTRUCTION;        // Instruction from memory
     wire [3:0] OPCODE;             // Opcode
     wire [2:0] SRC1, SRC2, DEST;   // R-Type registers and destination register
-    wire [5:0] IMMEDIATE, ADDRESS; // Immediate and J-Type address
+    wire [5:0] IMMEDIATE;          // 6-bit immediate for LOAD_IMM/LW/SW
+    wire [5:0] ADDRESS;            // 6-bit target for JUMP/JUMP_EQUAL/JUMP_UNEQUAL
     wire [9:0] ALU_OUT_LO, ALU_OUT_HI, WB_DATA, MemData, ReadA, ReadB;
-    wire ZERO, REG_WRITE, MEM_WRITE, MEM_OR_ALU, INCR_OP, JUMP, BEQ, BNE;
+    wire ZERO, REG_WRITE, MEM_WRITE, MEM_OR_ALU, INCR_OP, JUMP, JEQ, JNE, CMP;
     wire [2:0] ALU_OP;
     wire PC_WRITE;
 
+    localparam OP_LOAD_IMM = 4'b0100;
+    localparam OP_LW       = 4'b0110;
+    localparam OP_SW       = 4'b0111;
+    localparam REG_ONE     = 3'b001; // r1 - shared LOAD_IMM/LW/SW gateway register
+
+    // LOAD_IMM/LW/SW spend their whole 6-bit tail on an immediate or
+    // address, so they can't also encode a register field - LOAD_IMM/LW
+    // always target r1, and SW always reads r1. MOV is a plain R-Type
+    // instruction (DEST = SRC2) and needs no override: DEST already
+    // resolves to bits[5:3] and SRC2 to bits[2:0] like every other R-Type op.
+    wire [2:0] srcA_sel      = (OPCODE == OP_SW) ? REG_ONE : SRC1;
+    wire [2:0] writeReg_sel  = (OPCODE == OP_LOAD_IMM || OPCODE == OP_LW) ? REG_ONE : DEST;
+    wire IMM_OP = (OPCODE == OP_LOAD_IMM) || (OPCODE == OP_LW) || (OPCODE == OP_SW);
+
+    // EQ_FLAG: latched by COMPARE (SRC1 == SRC2), consumed by JUMP_EQUAL/JUMP_UNEQUAL.
+    reg EQ_FLAG;
+    always @(posedge CLK or posedge RESET) begin
+        if (RESET)
+            EQ_FLAG <= 1'b0;
+        else if (CMP)
+            EQ_FLAG <= ZERO;
+    end
+
     // Program Counter Control Logic
     wire [9:0] PC_NEXT, PC_CURRENT;
-    assign PC_WRITE = JUMP | (BEQ & ZERO) | (BNE & ~ZERO);
+    assign PC_WRITE = JUMP | (JEQ & EQ_FLAG) | (JNE & ~EQ_FLAG);
 
-    assign PC_NEXT = (JUMP) ? {4'b0000, ADDRESS} :   // Jump to Address for J-Type
-                     (BEQ & ZERO) ? ReadB :          // BEQ Condition (Branch Target)
-                     (BNE & ~ZERO) ? ReadB :         // BNE Condition
-                     PC_CURRENT + 10'd1;             // Default Increment
+    assign PC_NEXT = (JUMP)            ? {4'b0000, ADDRESS} :   // Unconditional jump
+                      (JEQ & EQ_FLAG)  ? {4'b0000, ADDRESS} :   // JUMP_EQUAL taken
+                      (JNE & ~EQ_FLAG) ? {4'b0000, ADDRESS} :   // JUMP_UNEQUAL taken
+                      PC_CURRENT + 10'd1;                       // Default Increment
 
     // Program Counter
     ProgramCounter pcUnit(
         .CLK(CLK),
         .RESET(RESET),
+        .HALT(HALT),
         .NEW_PC(PC_NEXT),
         .PC_WRITE(PC_WRITE),
         .PC(PC_CURRENT)
@@ -57,7 +84,7 @@ module Processor(
     assign PC_OUT = PC_CURRENT;
 
     // Instruction Memory
-    InstructionMemory instrMem(
+    InstructionMemory #(.PROGRAM(PROGRAM)) instrMem(
         .ADDRESS(PC_CURRENT),
         .INSTRUCTION(INSTRUCTION)
     );
@@ -82,8 +109,9 @@ module Processor(
         .MEM_OR_ALU(MEM_OR_ALU),
         .INCR_OP(INCR_OP),
         .JUMP(JUMP),
-        .BEQ(BEQ),
-        .BNE(BNE),
+        .JEQ(JEQ),
+        .JNE(JNE),
+        .CMP(CMP),
         .HALT(HALT)
     );
 
@@ -92,9 +120,9 @@ module Processor(
         .CLK(CLK),
         .RegWrite1(REG_WRITE),
         .RegWrite2(1'b0),
-        .srcA(SRC1),
+        .srcA(srcA_sel),
         .srcB(SRC2),
-        .writeReg1(DEST),          // Write back to DEST register
+        .writeReg1(writeReg_sel),  // Write back to DEST, or r1 for LOAD_IMM/LW
         .writeValue1(WB_DATA),
         .ReadA(ReadA),
         .ReadB(ReadB)
@@ -102,22 +130,22 @@ module Processor(
 
     // ALU: Handles R-Type and I-Type Operations
     ALU aluUnit(
-        .CLK(CLK),
         .OP(ALU_OP),
         .INPUTA(ReadA),
-        .INPUTB((OPCODE == 4'b0100) ? {4'b0000, IMMEDIATE} : ReadB), // Immediate for I-Type
+        .INPUTB(IMM_OP ? {4'b0000, IMMEDIATE} : ReadB),
         .INCR_OP(INCR_OP),
         .OUT_LO(ALU_OUT_LO),
         .OUT_HI(ALU_OUT_HI),
         .ZERO(ZERO)
     );
 
-    // Data Memory: Handles LOAD and STORE operations
+    // Data Memory: Handles LW and SW operations
     DataMemory dataMem(
         .CLK(CLK),
+        .RESET(RESET),
         .MEM_WRITE(MEM_WRITE),
         .ADDRESS(ALU_OUT_LO),
-        .WRITE_DATA(ReadB),
+        .WRITE_DATA(ReadA),        // r1 for SW, via srcA_sel
         .READ_DATA(MemData)
     );
 

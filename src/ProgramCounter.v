@@ -22,6 +22,7 @@
 
 module ProgramCounter (
     input CLK, RESET,
+    input HALT,                 // Freeze PC once a HALT instruction is fetched
     input [9:0] NEW_PC,        // New PC value for jumps or branches
     input PC_WRITE,            // Enable PC update
     output reg [9:0] PC        // Program Counter output
@@ -31,6 +32,8 @@ module ProgramCounter (
     always @(posedge CLK or posedge RESET) begin
         if (RESET) begin
             PC <= 10'b0;          // Reset PC to 0
+        end else if (HALT) begin
+            PC <= PC;             // Stop advancing once halted
         end else if (PC_WRITE) begin
             PC <= NEW_PC;         // Update PC with NEW_PC for JUMP or Branch
         end else begin
