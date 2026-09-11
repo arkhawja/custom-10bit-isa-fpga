@@ -1,22 +1,22 @@
 `timescale 1ns / 1ps
 //////////////////////////////////////////////////////////////////////////////////
-// Company: 
-// Engineer: 
-// 
+// Company:
+// Engineer:
+//
 // Create Date: 12/13/2024 05:16:12 PM
-// Design Name: 
+// Design Name:
 // Module Name: control
-// Project Name: 
-// Target Devices: 
-// Tool Versions: 
-// Description: 
-// 
-// Dependencies: 
-// 
+// Project Name:
+// Target Devices:
+// Tool Versions:
+// Description:
+//
+// Dependencies:
+//
 // Revision:
 // Revision 0.01 - File Created
 // Additional Comments:
-// 
+//
 //////////////////////////////////////////////////////////////////////////////////
 
 module Control(
@@ -70,6 +70,7 @@ module Control(
                 REG_WRITE = 1;
                 REG_OR_IM = 1;
                 WB_SEL = 2'b01; // Immediate Value
+                ALU_OP = 3'b110; // PASS: forward immediate to OUT_LO
             end
             4'b0101: begin // SPLIT
                 REG_WRITE = 1;
@@ -79,9 +80,11 @@ module Control(
                 REG_WRITE = 1;
                 MEM_OR_ALU = 1;
                 WB_SEL = 2'b10; // Memory Data
+                ALU_OP = 3'b110; // PASS: forward immediate address to DataMemory
             end
             4'b0111: begin // STORE
                 MEM_WRITE = 1;
+                ALU_OP = 3'b110; // PASS: forward immediate address to DataMemory
             end
             4'b1000: begin // BEQ (Branch if Equal)
                 BEQ = 1;
@@ -121,5 +124,3 @@ module Control(
     assign HALT = (OPCODE == 4'b0000) ? 1 : 0;
 
 endmodule
-
-
