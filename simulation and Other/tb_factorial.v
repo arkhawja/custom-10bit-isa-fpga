@@ -24,9 +24,12 @@ module tb_factorial;
 
         $display("---- Factorial(5) ----");
         $display("PC halted at   = %0d", PC_OUT);
-        $display("r1 (counter)   = %0d", dut.regFile.registers[1]);
-        $display("r2 (step)      = %0d", dut.regFile.registers[2]);
-        $display("r3 (result)    = %0d", dut.regFile.registers[3]);
+        $display("r0 (zero)      = %0d", dut.regFile.registers[0]);
+        $display("r1 (result)    = %0d", dut.regFile.registers[1]);
+        $display("r2 (counter)   = %0d", dut.regFile.registers[2]);
+        $display("r3 (step)      = %0d", dut.regFile.registers[3]);
+        $display("r5 (zero-cmp)  = %0d", dut.regFile.registers[5]);
+        $display("r6 (SW source) = %0d", dut.regFile.registers[6]);
         $display("Memory[0]      = %0d", dut.dataMem.memory[0]);
         if (dut.dataMem.memory[0] == 120)
             $display("RESULT: PASS (expected 120)");

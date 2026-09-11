@@ -23,14 +23,14 @@
 module InstructionDecoder(
     input [9:0] INSTRUCTION,
     output [3:0] OPCODE,
-    output [2:0] SRC1, SRC2, DEST,
-    output [2:0] IMMEDIATE,
-    output [5:0] ADDRESS
+    output [2:0] SRC1, SRC2, DEST,     // R-Type register fields
+    output [5:0] IMMEDIATE,            // 6-bit immediate for LOAD_IMM/LW/SW (no register field)
+    output [5:0] ADDRESS               // 6-bit target for JUMP/JUMP_EQUAL/JUMP_UNEQUAL
 );
     assign OPCODE = INSTRUCTION[9:6];
-    assign SRC1   = INSTRUCTION[5:3];
-    assign SRC2   = INSTRUCTION[2:0];
-    assign DEST   = INSTRUCTION[5:3]; // For R-Type instructions, and the register field of I-Type
-    assign IMMEDIATE = INSTRUCTION[2:0]; // 3-bit immediate/offset for SET, LOAD, STORE, BEQ, BNE
-    assign ADDRESS   = INSTRUCTION[5:0]; // Full 6-bit target for J-Type JUMP
+    assign SRC1   = INSTRUCTION[5:3];  // R-Type / COMPARE source, MOV destination
+    assign SRC2   = INSTRUCTION[2:0];  // R-Type source
+    assign DEST   = INSTRUCTION[5:3];  // R-Type destination (shared with SRC1)
+    assign IMMEDIATE = INSTRUCTION[5:0];
+    assign ADDRESS   = INSTRUCTION[5:0];
 endmodule

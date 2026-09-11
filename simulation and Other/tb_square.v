@@ -24,7 +24,9 @@ module tb_square;
 
         $display("---- Square(5) ----");
         $display("PC halted at   = %0d", PC_OUT);
+        $display("r0 (zero)      = %0d", dut.regFile.registers[0]);
         $display("r1 (result)    = %0d", dut.regFile.registers[1]);
+        $display("r6 (SW source) = %0d", dut.regFile.registers[6]);
         $display("Memory[0]      = %0d", dut.dataMem.memory[0]);
         if (dut.dataMem.memory[0] == 25)
             $display("RESULT: PASS (expected 25)");

@@ -32,28 +32,46 @@ module Processor #(
     wire [9:0] INSTRUCTION;        // Instruction from memory
     wire [3:0] OPCODE;             // Opcode
     wire [2:0] SRC1, SRC2, DEST;   // R-Type registers and destination register
-    wire [2:0] IMMEDIATE;          // 3-bit immediate/offset (SET, LOAD, STORE, BEQ, BNE)
-    wire [5:0] ADDRESS;            // 6-bit J-Type jump address
+    wire [5:0] IMMEDIATE;          // 6-bit immediate for LOAD_IMM/LW/SW
+    wire [5:0] ADDRESS;            // 6-bit target for JUMP/JUMP_EQUAL/JUMP_UNEQUAL
     wire [9:0] ALU_OUT_LO, ALU_OUT_HI, WB_DATA, MemData, ReadA, ReadB;
-    wire ZERO, REG_WRITE, MEM_WRITE, MEM_OR_ALU, INCR_OP, JUMP, BEQ, BNE;
+    wire ZERO, REG_WRITE, MEM_WRITE, MEM_OR_ALU, INCR_OP, JUMP, JEQ, JNE, CMP;
     wire [2:0] ALU_OP;
     wire PC_WRITE;
 
-    // Instructions whose ALU input B should come from the decoded immediate
-    // field rather than a register read (SET/LOAD/STORE all need the literal
-    // 3-bit value; BEQ/BNE need a zero operand so SUB tests the register
-    // against zero instead of against whatever SRC2 happens to hold).
-    wire IMM_OP    = (OPCODE == 4'b0100) || (OPCODE == 4'b0110) || (OPCODE == 4'b0111);
-    wire ZERO_TEST = (OPCODE == 4'b1000) || (OPCODE == 4'b1100);
+    localparam OP_LOAD_IMM = 4'b0100;
+    localparam OP_LW       = 4'b0110;
+    localparam OP_SW       = 4'b0111;
+    localparam OP_MOV      = 4'b1110;
+    localparam REG_ONE     = 3'b001; // r1 - default accumulator
+    localparam REG_SIX     = 3'b110; // r6 - SW's fixed source
+
+    // LOAD_IMM/LW/SW spend their whole 6-bit tail on an immediate or
+    // address, so they can't also encode a register field - LOAD_IMM/LW
+    // always target r1, and SW always reads r6. MOV always reads r1
+    // (its own bits[5:3] is the destination instead).
+    wire [2:0] srcA_sel      = (OPCODE == OP_SW)  ? REG_SIX : SRC1;
+    wire [2:0] srcB_sel      = (OPCODE == OP_MOV) ? REG_ONE : SRC2;
+    wire [2:0] writeReg_sel  = (OPCODE == OP_LOAD_IMM || OPCODE == OP_LW) ? REG_ONE : DEST;
+    wire IMM_OP = (OPCODE == OP_LOAD_IMM) || (OPCODE == OP_LW) || (OPCODE == OP_SW);
+
+    // EQ_FLAG: latched by COMPARE (SRC1 == SRC2), consumed by JUMP_EQUAL/JUMP_UNEQUAL.
+    reg EQ_FLAG;
+    always @(posedge CLK or posedge RESET) begin
+        if (RESET)
+            EQ_FLAG <= 1'b0;
+        else if (CMP)
+            EQ_FLAG <= ZERO;
+    end
 
     // Program Counter Control Logic
     wire [9:0] PC_NEXT, PC_CURRENT;
-    assign PC_WRITE = JUMP | (BEQ & ZERO) | (BNE & ~ZERO);
+    assign PC_WRITE = JUMP | (JEQ & EQ_FLAG) | (JNE & ~EQ_FLAG);
 
-    assign PC_NEXT = (JUMP) ? {4'b0000, ADDRESS} :        // Jump to Address for J-Type
-                     (BEQ & ZERO) ? {7'b0, IMMEDIATE} :   // BEQ Condition (Branch Target)
-                     (BNE & ~ZERO) ? {7'b0, IMMEDIATE} :  // BNE Condition
-                     PC_CURRENT + 10'd1;                  // Default Increment
+    assign PC_NEXT = (JUMP)            ? {4'b0000, ADDRESS} :   // Unconditional jump
+                      (JEQ & EQ_FLAG)  ? {4'b0000, ADDRESS} :   // JUMP_EQUAL taken
+                      (JNE & ~EQ_FLAG) ? {4'b0000, ADDRESS} :   // JUMP_UNEQUAL taken
+                      PC_CURRENT + 10'd1;                       // Default Increment
 
     // Program Counter
     ProgramCounter pcUnit(
@@ -93,8 +111,9 @@ module Processor #(
         .MEM_OR_ALU(MEM_OR_ALU),
         .INCR_OP(INCR_OP),
         .JUMP(JUMP),
-        .BEQ(BEQ),
-        .BNE(BNE),
+        .JEQ(JEQ),
+        .JNE(JNE),
+        .CMP(CMP),
         .HALT(HALT)
     );
 
@@ -103,9 +122,9 @@ module Processor #(
         .CLK(CLK),
         .RegWrite1(REG_WRITE),
         .RegWrite2(1'b0),
-        .srcA(SRC1),
-        .srcB(SRC2),
-        .writeReg1(DEST),          // Write back to DEST register
+        .srcA(srcA_sel),
+        .srcB(srcB_sel),
+        .writeReg1(writeReg_sel),  // Write back to DEST, or r1 for LOAD_IMM/LW
         .writeValue1(WB_DATA),
         .ReadA(ReadA),
         .ReadB(ReadB)
@@ -115,20 +134,20 @@ module Processor #(
     ALU aluUnit(
         .OP(ALU_OP),
         .INPUTA(ReadA),
-        .INPUTB(IMM_OP ? {7'b0, IMMEDIATE} : ZERO_TEST ? 10'b0 : ReadB),
+        .INPUTB(IMM_OP ? {4'b0000, IMMEDIATE} : ReadB),
         .INCR_OP(INCR_OP),
         .OUT_LO(ALU_OUT_LO),
         .OUT_HI(ALU_OUT_HI),
         .ZERO(ZERO)
     );
 
-    // Data Memory: Handles LOAD and STORE operations
+    // Data Memory: Handles LW and SW operations
     DataMemory dataMem(
         .CLK(CLK),
         .RESET(RESET),
         .MEM_WRITE(MEM_WRITE),
         .ADDRESS(ALU_OUT_LO),
-        .WRITE_DATA(ReadA),        // STORE's value register (SRC1/DEST field)
+        .WRITE_DATA(ReadA),        // r6 for SW, via srcA_sel
         .READ_DATA(MemData)
     );
 
